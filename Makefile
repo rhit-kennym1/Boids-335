@@ -1,4 +1,4 @@
-CC = clang
+CC = gcc
 CFLAGS = -lraylib -ldl -pthread -lGL -lm -o boids
 source := $(wildcard src/*.c)
 

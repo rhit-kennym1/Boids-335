@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include <math.h>
-#include <raylib.h>
+#include "../include/raylib.h"
 
 #include "boids.h"
 

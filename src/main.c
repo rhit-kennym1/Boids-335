@@ -1,5 +1,5 @@
-#include <raylib.h>
-#include <rlgl.h>
+#include "../include/raylib.h"
+#include "../include/rlgl.h"
 #include <stdlib.h>
 
 #include "boids.h"
