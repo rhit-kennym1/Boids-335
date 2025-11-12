@@ -1,14 +1,14 @@
-#include "../include/raylib.h"
-#include "../include/rlgl.h"
+#include <raylib.h>
+#include <rlgl.h>
 #include <stdlib.h>
 
 #include "boids.h"
 
 #define FPS 60
-#define WIDTH 800
-#define HEIGHT 450
+#define WIDTH 1920
+#define HEIGHT 1200
 #define TITLE "Boids Example"
-#define BOIDS 128
+#define BOIDS 1024
 
 int main(void) {
 	InitWindow(WIDTH, HEIGHT, TITLE);
