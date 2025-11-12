@@ -1,24 +1,30 @@
+# Makefile for Boids simulation
+
 CC = gcc
-CFLAGS = -lraylib -ldl -pthread -lGL -lm -o boids
-source := $(wildcard src/*.c)
 
-build:
-	$(CC) $(source) $(CFLAGS) -g3
+# Compiler flags
+CFLAGS = -I./raylib/src -O3 -march=native -fopenmp-simd -ffast-math -funroll-loops
+LDFLAGS = -L./raylib/src -lraylib -ldl -pthread -lGL -lm
 
-build_debug:
-	$(CC) $(source) $(CFLAGS) -g3 -fsanitize=address -O1 -fno-omit-frame-pointer -fno-optimize-sibling-calls
+# Source files (automatic detection)
+BASELINE_SRCS := $(wildcard src/*baseline*.c)
+PARALLEL_SRCS := $(wildcard src/*parallel*.c)
 
-build_release:
-	$(CC) $(source) $(CFLAGS) -g3
+# Output executables
+BASELINE_BIN := boids_baseline
+PARALLEL_BIN := boids_parallel
 
-gdb: build_debug
-	/bin/gdb boids
+# Default target: build both
+all: $(BASELINE_BIN) $(PARALLEL_BIN)
 
-debug: build_debug
-	./boids
+# Baseline build
+$(BASELINE_BIN): $(BASELINE_SRCS)
+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
 
-run: build
-	./boids
+# Parallel build
+$(PARALLEL_BIN): $(PARALLEL_SRCS)
+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
 
+# Clean
 clean:
-	rm -f boids
+	rm -f $(BASELINE_BIN) $(PARALLEL_BIN)
