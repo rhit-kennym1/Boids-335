@@ -7,6 +7,8 @@
 #define MODULO(a, n) fmod((a), (n)) + (((a) < 0) * (n))
 #define INVERSE(theta) fmod((theta)+M_PI, 2*M_PI)
 #define localFlockSize 128
+#define WIDTH 1920
+#define HEIGHT 1200
 
 struct LocalFlock {
      Boid* flock[localFlockSize];
@@ -46,7 +48,6 @@ LocalFlock getLocalFlock(Boid* boid, Boid** flock, int flockSize) {
                if (localFlock.size > localFlockSize)
                     break;
           }
-          i++;
      }
 
      return localFlock;
@@ -154,7 +155,7 @@ void updateBoid(Boid* boid, Boid** flock, int flockSize) {
 
      Vector2 velocity = {sinf(boid->rotation)*boid->velocity.x, -cosf(boid->rotation)*boid->velocity.y};
      boid->origin = (Vector2){boid->origin.x + velocity.x * deltaTime, boid->origin.y + velocity.y * deltaTime};
-     boid->origin = (Vector2){MODULO(boid->origin.x, 800), MODULO(boid->origin.y, 450)};
+     boid->origin = (Vector2){MODULO(boid->origin.x, WIDTH), MODULO(boid->origin.y, HEIGHT)};
 
      boid->lastUpdate = now;
 }
