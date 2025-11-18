@@ -108,6 +108,10 @@ float getSeparation(Boid* boid, LocalFlock localFlock) {
 }
 
 void updateBoid(Boid* boid, Boid** flock, int flockSize) {
+     updateBoid_Parallel(boid, flock, flockSize);
+}
+
+void updateBoid_Parallel(Boid* boid, Boid** flock, int flockSize) {
      double now = GetTime();
      double deltaTime = now - boid->lastUpdate;
 

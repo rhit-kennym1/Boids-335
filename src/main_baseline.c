@@ -11,6 +11,8 @@ int main(int argc, char* argv[]) {
 	InitWindow(WIDTH, HEIGHT, TITLE);
 	rlDisableBackfaceCulling();
 	SetTargetFPS(FPS);
+    SetRandomSeed(42690);
+    srand(42690);
 	
 	int BOIDS = NUM_BOIDS;
 	if (argc > 1) {
