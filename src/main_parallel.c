@@ -5,10 +5,10 @@
 #include "boids.h"
 
 #define FPS 60
-#define WIDTH 1920
-#define HEIGHT 1200
+#define WIDTH 800
+#define HEIGHT 450
 #define TITLE "Boids Example"
-#define BOIDS 1024
+#define BOIDS 128
 
 int main(void) {
 	InitWindow(WIDTH, HEIGHT, TITLE);

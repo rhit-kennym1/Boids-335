@@ -107,64 +107,56 @@ float getSeparation(Boid* boid, LocalFlock localFlock) {
 }
 
 void updateBoid(Boid* boid, Boid** flock, int flockSize) {
-    double now = GetTime();
-    double deltaTime = now - boid->lastUpdate;
+     double now = GetTime();
+     double deltaTime = now - boid->lastUpdate;
 
-    // Get current window size for dynamic wrap-around
-    int screenWidth = GetScreenWidth();
-    int screenHeight = GetScreenHeight();
+     LocalFlock localFlock = getLocalFlock(boid, flock, flockSize);
 
-    // Find local flock
-    LocalFlock localFlock = getLocalFlock(boid, flock, flockSize);
+     float closestBoid = -1;
+     for (int i = 0; i < localFlock.size; i++) {
+          float dist = distance(boid->origin, localFlock.flock[i]->origin);
 
-    float closestBoid = -1;
-    for (int i = 0; i < localFlock.size; i++) {
-        float dist = distance(boid->origin, localFlock.flock[i]->origin);
-        if (dist < closestBoid || closestBoid == -1)
-            closestBoid = dist;
-    }
+          if (distance(boid->origin, localFlock.flock[i]->origin) < closestBoid || closestBoid == -1)
+               closestBoid = dist;
+     }
 
-    // Rotation updates
-    float alignment = getAlignment(boid, localFlock);
-    float cohesion = getCohesion(boid, localFlock);
-    float separation = getSeparation(boid, localFlock);
-    float targetRotation = alignment - boid->rotation;
+     // Rotation Updates
 
-    if (fabs(boid->rotation - alignment) > 0 && closestBoid > 0) {
-        if (closestBoid >= 30)
-            targetRotation = cohesion - boid->rotation;
-        if (closestBoid <= 10)
-            targetRotation = separation - boid->rotation;
-    }
+     float alignment = getAlignment(boid, localFlock);
+     float cohesion = getCohesion(boid, localFlock);
+     float separation = getSeparation(boid, localFlock);
+     float targetRotation = alignment - boid->rotation;
 
-    targetRotation = MODULO(targetRotation, 2*M_PI);
-    if (targetRotation > M_PI)
-        targetRotation = INVERSE(targetRotation)-M_PI;
+     if (fabs(boid->rotation - alignment) > 0 && closestBoid > 0) {
+          if (closestBoid >= 30)
+               targetRotation = cohesion - boid->rotation;
 
-    float maximumRotation = boid->angularVelocity * deltaTime;
+          if (closestBoid <= 10)
+               targetRotation = separation - boid->rotation;
+     }
 
-    if (targetRotation > maximumRotation)
-        targetRotation = maximumRotation;
-    if (targetRotation < -maximumRotation)
-        targetRotation = -maximumRotation;
+     targetRotation = MODULO(targetRotation, 2*M_PI);
 
-    rotateBoid(boid, targetRotation);
+     if (targetRotation > M_PI)
+          targetRotation = INVERSE(targetRotation)-M_PI;
 
-    // Position updates
-    Vector2 velocity = {sinf(boid->rotation)*boid->velocity.x,
-                        -cosf(boid->rotation)*boid->velocity.y};
+     float maximumRotation = boid->angularVelocity * deltaTime;
 
-    boid->origin.x += velocity.x * deltaTime;
-    boid->origin.y += velocity.y * deltaTime;
+     if (targetRotation > maximumRotation)
+          targetRotation = maximumRotation;
 
-    // Dynamic wrap-around using current window size
-    if (boid->origin.x < 0) boid->origin.x += screenWidth;
-    if (boid->origin.x >= screenWidth) boid->origin.x -= screenWidth;
+     if (targetRotation < maximumRotation)
+          targetRotation = -maximumRotation;
 
-    if (boid->origin.y < 0) boid->origin.y += screenHeight;
-    if (boid->origin.y >= screenHeight) boid->origin.y -= screenHeight;
+     rotateBoid(boid, targetRotation);
 
-    boid->lastUpdate = now;
+     // Position Updates
+
+     Vector2 velocity = {sinf(boid->rotation)*boid->velocity.x, -cosf(boid->rotation)*boid->velocity.y};
+     boid->origin = (Vector2){boid->origin.x + velocity.x * deltaTime, boid->origin.y + velocity.y * deltaTime};
+     boid->origin = (Vector2){MODULO(boid->origin.x, 800), MODULO(boid->origin.y, 450)};
+
+     boid->lastUpdate = now;
 }
 
 void rotateBoid(Boid* boid, float theta) {
