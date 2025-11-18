@@ -10,7 +10,7 @@
 #define HEIGHT 1200
 #define TITLE "Boids Performance Metrics"
 #define BOIDS 5000
-#define BENCHMARK_FRAMES 600  // Measure over 600 frames (~10 seconds)
+#define BENCHMARK_FRAMES 600
 
 typedef struct {
 	Vector2 v0, v1, v2;
@@ -55,8 +55,6 @@ int main(void) {
 		// === UPDATE PHASE ===
 		double updateStart = GetTime();
 		
-		// Use updateAllBoids if it exists (parallel version)
-		// Otherwise fall back to serial loop
 		#ifdef UPDATE_ALL_BOIDS
 		updateAllBoids(flock, BOIDS);
 		#else
@@ -67,9 +65,10 @@ int main(void) {
 		double updateEnd = GetTime();
 		totalUpdateTime += (updateEnd - updateStart);
 		
-		// === COMPUTE PHASE (prepare triangles) ===
+		// === COMPUTE PHASE (prepare triangles) - PARALLELIZED ===
 		double computeStart = GetTime();
 		
+		#pragma omp parallel for schedule(static)
 		for (int i = 0; i < BOIDS; i++) {
 			Boid* boid = flock[i];
 			triangles[i].v0 = (Vector2){boid->positions[0].x + boid->origin.x, 
@@ -83,22 +82,24 @@ int main(void) {
 		double computeEnd = GetTime();
 		totalComputeTime += (computeEnd - computeStart);
 		
-		// === RENDER PHASE ===
+		// === RENDER PHASE (must be serial for OpenGL) ===
 		double renderStart = GetTime();
 		
 		BeginDrawing();
 		ClearBackground(RAYWHITE);
 		
+		// Serial drawing - OpenGL requires this
 		for (int i = 0; i < BOIDS; i++)
 			DrawTriangle(triangles[i].v0, triangles[i].v1, triangles[i].v2, BLUE);
 		
 		// Display metrics on screen
 		DrawText(TextFormat("FPS: %.1f", avgFPS), 10, 10, 20, RED);
 		DrawText(TextFormat("Update: %.3f ms", avgUpdateMs), 10, 35, 20, RED);
-		DrawText(TextFormat("Render: %.3f ms", avgRenderMs), 10, 60, 20, RED);
-		DrawText(TextFormat("Boids: %d", BOIDS), 10, 85, 20, RED);
+		DrawText(TextFormat("Compute: %.3f ms", avgComputeMs), 10, 60, 20, RED);
+		DrawText(TextFormat("Render: %.3f ms", avgRenderMs), 10, 85, 20, RED);
+		DrawText(TextFormat("Boids: %d", BOIDS), 10, 110, 20, RED);
 		#ifdef _OPENMP
-		DrawText(TextFormat("Threads: %d", omp_get_max_threads()), 10, 110, 20, RED);
+		DrawText(TextFormat("Threads: %d", omp_get_max_threads()), 10, 135, 20, RED);
 		#endif
 		
 		EndDrawing();
