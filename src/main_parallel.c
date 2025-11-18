@@ -25,8 +25,7 @@ int main(int argc, char* argv[]) {
 		flock[i] = newBoid((Vector2){GetRandomValue(0, WIDTH), GetRandomValue(0, HEIGHT)}, (Vector2){20, 20}, GetRandomValue(0, 6), 1);
 
 	while (!WindowShouldClose()){
-		for (int i = 0; i < BOIDS; i++)
-			updateBoid(flock[i], flock, BOIDS);
+		updateAllBoids(flock, BOIDS);
 
 		BeginDrawing();
 		ClearBackground(RAYWHITE);

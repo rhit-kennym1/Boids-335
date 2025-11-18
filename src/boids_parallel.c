@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <raylib.h>
+#include <omp.h>
 
 #include "boids.h"
 
@@ -108,10 +109,6 @@ float getSeparation(Boid* boid, LocalFlock localFlock) {
 }
 
 void updateBoid(Boid* boid, Boid** flock, int flockSize) {
-     updateBoid_Parallel(boid, flock, flockSize);
-}
-
-void updateBoid_Parallel(Boid* boid, Boid** flock, int flockSize) {
      double now = GetTime();
      double deltaTime = now - boid->lastUpdate;
 
@@ -162,6 +159,63 @@ void updateBoid_Parallel(Boid* boid, Boid** flock, int flockSize) {
      boid->origin = (Vector2){MODULO(boid->origin.x, WIDTH), MODULO(boid->origin.y, HEIGHT)};
 
      boid->lastUpdate = now;
+}
+
+// New function to update all boids in parallel
+void updateAllBoids(Boid** flock, int flockSize) {
+     double now = GetTime();
+     
+     #pragma omp parallel for schedule(dynamic)
+     for (int i = 0; i < flockSize; i++) {
+          Boid* boid = flock[i];
+          double deltaTime = now - boid->lastUpdate;
+
+          LocalFlock localFlock = getLocalFlock(boid, flock, flockSize);
+
+          float closestBoid = -1;
+          for (int j = 0; j < localFlock.size; j++) {
+               float dist = distance(boid->origin, localFlock.flock[j]->origin);
+
+               if (dist < closestBoid || closestBoid == -1)
+                    closestBoid = dist;
+          }
+
+          // Rotation Updates
+          float alignment = getAlignment(boid, localFlock);
+          float cohesion = getCohesion(boid, localFlock);
+          float separation = getSeparation(boid, localFlock);
+          float targetRotation = alignment - boid->rotation;
+
+          if (fabs(boid->rotation - alignment) > 0 && closestBoid > 0) {
+               if (closestBoid >= 30)
+                    targetRotation = cohesion - boid->rotation;
+
+               if (closestBoid <= 10)
+                    targetRotation = separation - boid->rotation;
+          }
+
+          targetRotation = MODULO(targetRotation, 2*M_PI);
+
+          if (targetRotation > M_PI)
+               targetRotation = INVERSE(targetRotation)-M_PI;
+
+          float maximumRotation = boid->angularVelocity * deltaTime;
+
+          if (targetRotation > maximumRotation)
+               targetRotation = maximumRotation;
+
+          if (targetRotation < -maximumRotation)
+               targetRotation = -maximumRotation;
+
+          rotateBoid(boid, targetRotation);
+
+          // Position Updates
+          Vector2 velocity = {sinf(boid->rotation)*boid->velocity.x, -cosf(boid->rotation)*boid->velocity.y};
+          boid->origin = (Vector2){boid->origin.x + velocity.x * deltaTime, boid->origin.y + velocity.y * deltaTime};
+          boid->origin = (Vector2){MODULO(boid->origin.x, WIDTH), MODULO(boid->origin.y, HEIGHT)};
+
+          boid->lastUpdate = now;
+     }
 }
 
 void rotateBoid(Boid* boid, float theta) {
