@@ -6,15 +6,15 @@ CC = gcc
 CFLAGS = -I./raylib/src -O3 -march=native -fopenmp-simd -ffast-math -funroll-loops
 LDFLAGS = -L./raylib/src -lraylib -ldl -pthread -lGL -lm
 
-# Source files (automatic detection)
-BASELINE_SRCS := $(wildcard src/*baseline*.c)
-PARALLEL_SRCS := $(wildcard src/*parallel*.c)
+# Source files
+BASELINE_SRCS := $(wildcard src/*baseline*.c) src/config.c
+PARALLEL_SRCS := $(wildcard src/*parallel*.c) src/config.c
 
 # Output executables
 BASELINE_BIN := boids_baseline
 PARALLEL_BIN := boids_parallel
 
-# Default target: build both
+# Default target
 all: $(BASELINE_BIN) $(PARALLEL_BIN)
 
 # Baseline build

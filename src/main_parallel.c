@@ -3,17 +3,19 @@
 #include <stdlib.h>
 
 #include "boids.h"
+#include "config.h"
 
-#define FPS 60
-#define WIDTH 1920
-#define HEIGHT 1200
 #define TITLE "Boids Example"
-#define BOIDS 128
 
-int main(void) {
+int main(int argc, char* argv[]) {
 	InitWindow(WIDTH, HEIGHT, TITLE);
 	rlDisableBackfaceCulling();
 	SetTargetFPS(FPS);
+	
+	int BOIDS = NUM_BOIDS;
+	if (argc > 1) {
+        BOIDS = atoi(argv[1]);
+    }
 
 	Boid* flock[BOIDS];
 
