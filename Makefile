@@ -3,7 +3,7 @@
 CC = gcc
 
 # Compiler flags
-CFLAGS = -I./raylib/src -O3 -march=native -fopenmp -ffast-math -funroll-loops
+CFLAGS = -I./raylib/src -fopenmp -O3
 LDFLAGS = -L./raylib/src -lraylib -ldl -pthread -lGL -lm -lgomp
 
 # Source files

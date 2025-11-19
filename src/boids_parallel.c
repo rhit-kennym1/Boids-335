@@ -147,7 +147,7 @@ void updateBoid(Boid* boid, Boid** flock, int flockSize) {
      if (targetRotation > maximumRotation)
           targetRotation = maximumRotation;
 
-     if (targetRotation < maximumRotation)
+     if (targetRotation < -maximumRotation)
           targetRotation = -maximumRotation;
 
      rotateBoid(boid, targetRotation);
