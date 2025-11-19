@@ -61,7 +61,7 @@ int main(void) {
         // UPDATE boids
         double t0 = GetTime();
         #ifdef UPDATE_ALL_BOIDS
-            updateAllBoids(flock, BOIDS); // parallel-friendly update
+            updateAllBoids(flock, BOIDS); // parallel update
         #else
             for (int i = 0; i < BOIDS; i++) {
                 updateBoid(flock[i], flock, BOIDS); // regular update
