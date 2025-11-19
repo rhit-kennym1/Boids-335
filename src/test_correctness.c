@@ -15,6 +15,7 @@
 extern void updateBoid(Boid* boid, Boid** flock, int flockSize);
 extern void updateAllBoids(Boid** flock, int flockSize);
 
+// stores state of a boid for comparison
 typedef struct {
     Vector2 origin;
     float rotation;
@@ -23,6 +24,7 @@ typedef struct {
     Vector2 positions[3];
 } BoidState;
 
+// copy boid state
 void copyBoidState(Boid* src, BoidState* dst) {
     dst->origin = src->origin;
     dst->rotation = src->rotation;
@@ -33,52 +35,38 @@ void copyBoidState(Boid* src, BoidState* dst) {
     }
 }
 
+// compare floats with epsilon tolerance
 int floatsEqual(float a, float b, float epsilon) {
     return fabsf(a - b) < epsilon;
 }
 
+// compare vectors
 int vectorsEqual(Vector2 a, Vector2 b, float epsilon) {
     return floatsEqual(a.x, b.x, epsilon) && floatsEqual(a.y, b.y, epsilon);
 }
 
+// compare boid states, gives verbose output optionally
 int statesEqual(BoidState* a, BoidState* b, float epsilon, int verbose) {
     int match = 1;
     if (!vectorsEqual(a->origin, b->origin, epsilon)) {
-        if (verbose) {
-            printf("Origin: (%.6f, %.6f) vs (%.6f, %.6f), diff: (%.6f, %.6f)\n",
-                   a->origin.x, a->origin.y, b->origin.x, b->origin.y,
-                   fabsf(a->origin.x - b->origin.x), fabsf(a->origin.y - b->origin.y));
-        }
+        if (verbose) printf("Origin: (%.6f, %.6f) vs (%.6f, %.6f)\n", a->origin.x, a->origin.y, b->origin.x, b->origin.y);
         match = 0;
     }
     if (!floatsEqual(a->rotation, b->rotation, epsilon)) {
-        if (verbose) {
-            printf("Rotation: %.6f vs %.6f, diff: %.6f\n",
-                   a->rotation, b->rotation, fabsf(a->rotation - b->rotation));
-        }
+        if (verbose) printf("Rotation: %.6f vs %.6f\n", a->rotation, b->rotation);
         match = 0;
     }
     if (!vectorsEqual(a->velocity, b->velocity, epsilon)) {
-        if (verbose) {
-            printf("Velocity: (%.6f, %.6f) vs (%.6f, %.6f)\n",
-                   a->velocity.x, a->velocity.y, b->velocity.x, b->velocity.y);
-        }
+        if (verbose) printf("Velocity: (%.6f, %.6f) vs (%.6f, %.6f)\n", a->velocity.x, a->velocity.y, b->velocity.x, b->velocity.y);
         match = 0;
     }
     if (!floatsEqual(a->angularVelocity, b->angularVelocity, epsilon)) {
-        if (verbose) {
-            printf("Angular velocity: %.6f vs %.6f\n",
-                   a->angularVelocity, b->angularVelocity);
-        }
+        if (verbose) printf("Angular velocity: %.6f vs %.6f\n", a->angularVelocity, b->angularVelocity);
         match = 0;
     }
     for (int i = 0; i < 3; i++) {
         if (!vectorsEqual(a->positions[i], b->positions[i], epsilon)) {
-            if (verbose) {
-                printf("Position[%d]: (%.6f, %.6f) vs (%.6f, %.6f)\n",
-                       i, a->positions[i].x, a->positions[i].y,
-                       b->positions[i].x, b->positions[i].y);
-            }
+            if (verbose) printf("Position[%d]: (%.6f, %.6f) vs (%.6f, %.6f)\n", i, a->positions[i].x, a->positions[i].y, b->positions[i].x, b->positions[i].y);
             match = 0;
         }
     }
@@ -88,11 +76,13 @@ int statesEqual(BoidState* a, BoidState* b, float epsilon, int verbose) {
 int main(void) {
     printf("BOIDS CORRECTNESS TEST\n\n");
 
-    InitWindow(WIDTH, HEIGHT, "Correctness Test");
+    InitWindow(WIDTH, HEIGHT, "Correctness Test"); // open window
     SetTargetFPS(60);
 
+    // set random seed so both flocks start same
     SetRandomSeed(42690);
     srand(42690);
+
     Vector2 initialPositions[TEST_BOIDS];
     float initialRotations[TEST_BOIDS];
     for (int i = 0; i < TEST_BOIDS; i++) {
@@ -100,6 +90,7 @@ int main(void) {
         initialRotations[i] = GetRandomValue(0, 6);
     }
 
+    // create serial flock
     printf("Creating serial flock with %d boids\n", TEST_BOIDS);
     Boid* baselineFlock[TEST_BOIDS];
     double creationTime = GetTime();
@@ -108,6 +99,7 @@ int main(void) {
         baselineFlock[i]->lastUpdate = creationTime;
     }
 
+    // create parallel flock
     printf("Creating parallel flock\n");
     Boid* parallelFlock[TEST_BOIDS];
     for (int i = 0; i < TEST_BOIDS; i++) {
@@ -117,6 +109,7 @@ int main(void) {
 
     BoidState baselineStates[TEST_BOIDS];
     BoidState parallelStates[TEST_BOIDS];
+
     int totalTests = 0;
     int passedTests = 0;
     int failedFrames = 0;
@@ -126,13 +119,16 @@ int main(void) {
     printf("Running %d frames\n", TEST_FRAMES);
 
     for (int frame = 0; frame < TEST_FRAMES; frame++) {
+        // serial update with 1 thread
         int oldThreads = omp_get_max_threads();
         omp_set_num_threads(1);
         updateAllBoids(baselineFlock, TEST_BOIDS);
         omp_set_num_threads(oldThreads);
 
+        // parallel update
         updateAllBoids(parallelFlock, TEST_BOIDS);
 
+        // copy states for comparison
         for (int i = 0; i < TEST_BOIDS; i++) {
             copyBoidState(baselineFlock[i], &baselineStates[i]);
             copyBoidState(parallelFlock[i], &parallelStates[i]);
@@ -147,7 +143,7 @@ int main(void) {
                 passedTests++;
             } else {
                 if (frameMatches) {
-                    printf("Frame %d mismatch\n", frame);
+                    printf("Frame %d mismatch\n", frame); // first error for this frame
                     frameMatches = 0;
                     failedFrames++;
                     if (firstFailureFrame == -1) firstFailureFrame = frame;
@@ -161,12 +157,15 @@ int main(void) {
                 }
             }
         }
+
         if (frameMatches && (frame % 10 == 0 || frame == TEST_FRAMES - 1)) {
-            printf("Frame %d OK\n", frame);
+            printf("Frame %d OK\n", frame); // some progress feedback
         }
-        WaitTime(0.001);
+
+        WaitTime(0.001); // tiny wait so window updates
     }
 
+    // print results
     printf("\nRESULTS\n");
     printf("Total frames: %d\n", TEST_FRAMES);
     printf("Boids per frame: %d\n", TEST_BOIDS);
@@ -182,6 +181,7 @@ int main(void) {
         printf("FAILURE! differences detected starting frame %d\n", firstFailureFrame);
     }
 
+    // cleanup
     for (int i = 0; i < TEST_BOIDS; i++) {
         free(baselineFlock[i]->positions);
         free(baselineFlock[i]);
@@ -189,6 +189,6 @@ int main(void) {
         free(parallelFlock[i]);
     }
 
-    CloseWindow();
+    CloseWindow(); // close window
     return (passedTests == totalTests) ? 0 : 1;
 }
