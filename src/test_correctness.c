@@ -1,194 +1,165 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <math.h>
 #include <raylib.h>
-#include <string.h>
+#include <rlgl.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include <omp.h>
 #include "boids.h"
 
-#define TEST_FRAMES 100
-#define TEST_BOIDS 50
+#define FPS 60
 #define WIDTH 1920
 #define HEIGHT 1200
-#define EPSILON 1e-1  
+#define TITLE "Boids Performance Metrics"
+#define BOIDS 5000
+#define BENCHMARK_FRAMES 100
 
-extern void updateBoid(Boid* boid, Boid** flock, int flockSize);
-extern void updateAllBoids(Boid** flock, int flockSize);
-
-// stores state of a boid for comparison
 typedef struct {
-    Vector2 origin;
-    float rotation;
-    Vector2 velocity;
-    float angularVelocity;
-    Vector2 positions[3];
-} BoidState;
-
-// copy boid state
-void copyBoidState(Boid* src, BoidState* dst) {
-    dst->origin = src->origin;
-    dst->rotation = src->rotation;
-    dst->velocity = src->velocity;
-    dst->angularVelocity = src->angularVelocity;
-    for (int i = 0; i < 3; i++) {
-        dst->positions[i] = src->positions[i];
-    }
-}
-
-// compare floats with epsilon tolerance
-int floatsEqual(float a, float b, float epsilon) {
-    return fabsf(a - b) < epsilon;
-}
-
-// compare vectors
-int vectorsEqual(Vector2 a, Vector2 b, float epsilon) {
-    return floatsEqual(a.x, b.x, epsilon) && floatsEqual(a.y, b.y, epsilon);
-}
-
-// compare boid states, gives verbose output optionally
-int statesEqual(BoidState* a, BoidState* b, float epsilon, int verbose) {
-    int match = 1;
-    if (!vectorsEqual(a->origin, b->origin, epsilon)) {
-        if (verbose) printf("Origin: (%.6f, %.6f) vs (%.6f, %.6f)\n", a->origin.x, a->origin.y, b->origin.x, b->origin.y);
-        match = 0;
-    }
-    if (!floatsEqual(a->rotation, b->rotation, epsilon)) {
-        if (verbose) printf("Rotation: %.6f vs %.6f\n", a->rotation, b->rotation);
-        match = 0;
-    }
-    if (!vectorsEqual(a->velocity, b->velocity, epsilon)) {
-        if (verbose) printf("Velocity: (%.6f, %.6f) vs (%.6f, %.6f)\n", a->velocity.x, a->velocity.y, b->velocity.x, b->velocity.y);
-        match = 0;
-    }
-    if (!floatsEqual(a->angularVelocity, b->angularVelocity, epsilon)) {
-        if (verbose) printf("Angular velocity: %.6f vs %.6f\n", a->angularVelocity, b->angularVelocity);
-        match = 0;
-    }
-    for (int i = 0; i < 3; i++) {
-        if (!vectorsEqual(a->positions[i], b->positions[i], epsilon)) {
-            if (verbose) printf("Position[%d]: (%.6f, %.6f) vs (%.6f, %.6f)\n", i, a->positions[i].x, a->positions[i].y, b->positions[i].x, b->positions[i].y);
-            match = 0;
-        }
-    }
-    return match;
-}
+    Vector2 v0, v1, v2; // triangle vertices for rendering
+} Triangle;
 
 int main(void) {
-    printf("BOIDS CORRECTNESS TEST\n\n");
 
-    InitWindow(WIDTH, HEIGHT, "Correctness Test"); // open window
-    SetTargetFPS(60);
+    // Print OpenMP info
+    #ifdef _OPENMP
+        printf("OpenMP enabled (threads: %d)\n", omp_get_max_threads());
+    #else
+        printf("OpenMP not enabled\n");
+    #endif
 
-    // set random seed so both flocks start same
-    SetRandomSeed(42690);
-    srand(42690);
+    InitWindow(WIDTH, HEIGHT, TITLE); // open window
+    rlDisableBackfaceCulling();
+    SetTargetFPS(FPS);
 
-    Vector2 initialPositions[TEST_BOIDS];
-    float initialRotations[TEST_BOIDS];
-    for (int i = 0; i < TEST_BOIDS; i++) {
-        initialPositions[i] = (Vector2){GetRandomValue(0, WIDTH), GetRandomValue(0, HEIGHT)};
-        initialRotations[i] = GetRandomValue(0, 6);
+    Boid* flock[BOIDS];      // array of boid pointers
+    Triangle triangles[BOIDS]; // array of triangles for rendering
+
+    // Initialize boids
+    for (int i = 0; i < BOIDS; i++) {
+        flock[i] = newBoid(
+            (Vector2){GetRandomValue(0, WIDTH), GetRandomValue(0, HEIGHT)},
+            (Vector2){20, 20},
+            GetRandomValue(0, 6),
+            1);
     }
 
-    // create serial flock
-    printf("Creating serial flock with %d boids\n", TEST_BOIDS);
-    Boid* baselineFlock[TEST_BOIDS];
-    double creationTime = GetTime();
-    for (int i = 0; i < TEST_BOIDS; i++) {
-        baselineFlock[i] = newBoid(initialPositions[i], (Vector2){20, 20}, initialRotations[i], 1);
-        baselineFlock[i]->lastUpdate = creationTime;
-    }
+    int frameCount = 0;
+    double totalUpdate = 0.0;
+    double totalCompute = 0.0;
+    double totalRender = 0.0;
 
-    // create parallel flock
-    printf("Creating parallel flock\n");
-    Boid* parallelFlock[TEST_BOIDS];
-    for (int i = 0; i < TEST_BOIDS; i++) {
-        parallelFlock[i] = newBoid(initialPositions[i], (Vector2){20, 20}, initialRotations[i], 1);
-        parallelFlock[i]->lastUpdate = creationTime;
-    }
+    double start = GetTime();
+    double lastUpdate = GetTime();
 
-    BoidState baselineStates[TEST_BOIDS];
-    BoidState parallelStates[TEST_BOIDS];
+    double avgFPS = 0.0;
+    double avgUpdate = 0.0;
+    double avgCompute = 0.0;
+    double avgRender = 0.0;
 
-    int totalTests = 0;
-    int passedTests = 0;
-    int failedFrames = 0;
-    int firstFailureFrame = -1;
-    int maxErrorsToShow = 3;
+    while (!WindowShouldClose()) {
 
-    printf("Running %d frames\n", TEST_FRAMES);
+        double frameStart = GetTime();
 
-    for (int frame = 0; frame < TEST_FRAMES; frame++) {
-        // serial update with 1 thread
-        int oldThreads = omp_get_max_threads();
-        omp_set_num_threads(1);
-        updateAllBoids(baselineFlock, TEST_BOIDS);
-        omp_set_num_threads(oldThreads);
+        // UPDATE boids
+        double t0 = GetTime();
+        #ifdef UPDATE_ALL_BOIDS
+            updateAllBoids(flock, BOIDS); // parallel-friendly update
+        #else
+            for (int i = 0; i < BOIDS; i++) {
+                updateBoid(flock[i], flock, BOIDS); // regular update
+            }
+        #endif
+        double t1 = GetTime();
+        totalUpdate += (t1 - t0);
 
-        // parallel update
-        updateAllBoids(parallelFlock, TEST_BOIDS);
+        // COMPUTE triangle vertices
+        double t2 = GetTime();
+        #pragma omp parallel for schedule(static)
+        for (int i = 0; i < BOIDS; i++) {
+            Boid* b = flock[i];
+            triangles[i].v0 = (Vector2){b->positions[0].x + b->origin.x,
+                                         b->positions[0].y + b->origin.y};
+            triangles[i].v1 = (Vector2){b->positions[1].x + b->origin.x,
+                                         b->positions[1].y + b->origin.y};
+            triangles[i].v2 = (Vector2){b->positions[2].x + b->origin.x,
+                                         b->positions[2].y + b->origin.y};
+        }
+        double t3 = GetTime();
+        totalCompute += (t3 - t2);
 
-        // copy states for comparison
-        for (int i = 0; i < TEST_BOIDS; i++) {
-            copyBoidState(baselineFlock[i], &baselineStates[i]);
-            copyBoidState(parallelFlock[i], &parallelStates[i]);
+        // RENDER
+        double t4 = GetTime();
+        BeginDrawing();
+        ClearBackground(RAYWHITE);
+
+        for (int i = 0; i < BOIDS; i++) {
+            DrawTriangle(triangles[i].v0, triangles[i].v1, triangles[i].v2, BLUE);
         }
 
-        int frameMatches = 1;
-        int errorsShown = 0;
-        for (int i = 0; i < TEST_BOIDS; i++) {
-            totalTests++;
-            int verbose = errorsShown < maxErrorsToShow;
-            if (statesEqual(&baselineStates[i], &parallelStates[i], EPSILON, verbose)) {
-                passedTests++;
-            } else {
-                if (frameMatches) {
-                    printf("Frame %d mismatch\n", frame); // first error for this frame
-                    frameMatches = 0;
-                    failedFrames++;
-                    if (firstFailureFrame == -1) firstFailureFrame = frame;
-                }
-                if (verbose) {
-                    printf("Boid %d\n", i);
-                    errorsShown++;
-                } else if (errorsShown == maxErrorsToShow) {
-                    printf("more errors not shown\n");
-                    errorsShown++;
-                }
+        // draw metrics overlay
+        DrawText(TextFormat("FPS: %.1f", avgFPS), 10, 10, 20, RED);
+        DrawText(TextFormat("Update: %.3f ms", avgUpdate), 10, 35, 20, RED);
+        DrawText(TextFormat("Compute: %.3f ms", avgCompute), 10, 60, 20, RED);
+        DrawText(TextFormat("Render: %.3f ms", avgRender), 10, 85, 20, RED);
+        DrawText(TextFormat("Boids: %d", BOIDS), 10, 110, 20, RED);
+
+        #ifdef _OPENMP
+            DrawText(TextFormat("Threads: %d", omp_get_max_threads()), 10, 135, 20, RED);
+        #endif
+
+        EndDrawing();
+        double t5 = GetTime();
+        totalRender += (t5 - t4);
+
+        frameCount++;
+
+        // update displayed metrics every second
+        double now = GetTime();
+        if (now - lastUpdate >= 1.0) {
+            double elapsed = now - start;
+            avgFPS = frameCount / elapsed;
+            avgUpdate = (totalUpdate / frameCount) * 1000.0;
+            avgCompute = (totalCompute / frameCount) * 1000.0;
+            avgRender = (totalRender / frameCount) * 1000.0;
+            lastUpdate = now;
+        }
+
+        // Benchmark completed
+        if (frameCount == BENCHMARK_FRAMES) {
+            double total = GetTime() - start;
+
+            #ifdef _OPENMP
+                printf("Threads: %d\n", omp_get_max_threads());
+            #else
+                printf("Threads: 1\n");
+            #endif
+
+            printf("Time: %.2f s\n", total);
+            printf("FPS: %.2f\n", frameCount / total);
+            printf("Avg frame: %.3f ms\n", (total / frameCount) * 1000.0);
+            printf("Update: %.3f ms\n", avgUpdate);
+            printf("Compute: %.3f ms\n", avgCompute);
+            printf("Render: %.3f ms\n", avgRender);
+
+            // write metrics to file
+            FILE* fp = fopen("speedup_data.txt", "a");
+            if (fp) {
+                #ifdef _OPENMP
+                    fprintf(fp, "%d %.6f %.6f %.6f\n",
+                            omp_get_max_threads(), avgUpdate, avgCompute, avgRender);
+                #else
+                    fprintf(fp, "1 %.6f %.6f %.6f\n",
+                            avgUpdate, avgCompute, avgRender);
+                #endif
+                fclose(fp);
             }
         }
-
-        if (frameMatches && (frame % 10 == 0 || frame == TEST_FRAMES - 1)) {
-            printf("Frame %d OK\n", frame); // some progress feedback
-        }
-
-        WaitTime(0.001); // tiny wait so window updates
     }
 
-    // print results
-    printf("\nRESULTS\n");
-    printf("Total frames: %d\n", TEST_FRAMES);
-    printf("Boids per frame: %d\n", TEST_BOIDS);
-    printf("Total tests: %d\n", totalTests);
-    printf("Passed: %d (%.2f%%)\n", passedTests, (passedTests * 100.0) / totalTests);
-    printf("Failed: %d (%.2f%%)\n", totalTests - passedTests, ((totalTests - passedTests) * 100.0) / totalTests);
-    printf("Frames with error: %d\n", failedFrames);
-    if (firstFailureFrame >= 0) printf("First failure frame %d\n", firstFailureFrame);
-
-    if (passedTests == totalTests) {
-        printf("SUCCESS! parallel implementation matches serial\n");
-    } else {
-        printf("FAILURE! differences detected starting frame %d\n", firstFailureFrame);
+    // CLEANUP
+    for (int i = 0; i < BOIDS; i++) {
+        free(flock[i]->positions);
+        free(flock[i]);
     }
 
-    // cleanup
-    for (int i = 0; i < TEST_BOIDS; i++) {
-        free(baselineFlock[i]->positions);
-        free(baselineFlock[i]);
-        free(parallelFlock[i]->positions);
-        free(parallelFlock[i]);
-    }
-
-    CloseWindow(); // close window
-    return (passedTests == totalTests) ? 0 : 1;
+    CloseWindow();
+    return 0;
 }
