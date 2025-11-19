@@ -14,3 +14,4 @@ Boid* newBoid(Vector2 origin, Vector2 velocity, float rotation, float angularVel
 void updateBoid(Boid* boid, Boid** flock, int flockSize);
 void rotateBoid(Boid* boid, float theta);
 void drawBoid(Boid* boid);
+void updateAllBoids(Boid** flock, int flockSize);
